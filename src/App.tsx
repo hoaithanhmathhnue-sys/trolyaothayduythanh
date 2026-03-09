@@ -3,7 +3,7 @@ import { GoogleGenAI } from "@google/genai";
 import ReactMarkdown from "react-markdown";
 import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
-import { Send, Bot, User, Sparkles, BookOpen, Square, Cylinder, Activity, Settings, X, ExternalLink, AlertTriangle, Paperclip, Mic, MicOff, FileText, Image as ImageIcon, Trash2, Upload, Volume2, Play, ChevronDown, ChevronUp, Lightbulb, PenLine } from "lucide-react";
+import { Send, Bot, User, Sparkles, BookOpen, Square, Cylinder, Activity, Settings, X, ExternalLink, AlertTriangle, Paperclip, Mic, MicOff, FileText, Image as ImageIcon, Trash2, Upload, Volume2, Play, ChevronDown, ChevronUp, Lightbulb, PenLine, Info } from "lucide-react";
 import { cn } from "./lib/utils";
 
 // --- ATTACHED FILE TYPE ---
@@ -355,6 +355,68 @@ function ApiKeyModal({
   );
 }
 
+// --- AUTHOR MODAL COMPONENT ---
+function AuthorModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full overflow-hidden relative">
+        {/* Close Button */}
+        <button
+          onClick={onClose}
+          className="absolute top-4 right-4 p-1.5 bg-white/20 hover:bg-slate-200 rounded-full transition-colors z-10"
+        >
+          <X className="w-5 h-5 text-slate-500 hover:text-slate-800" />
+        </button>
+
+        {/* Modal Header Cover */}
+        <div className="h-24 bg-gradient-to-r from-blue-600 to-indigo-600 w-full relative">
+          <div className="absolute -bottom-12 left-1/2 -translate-x-1/2">
+            <div className="w-24 h-24 rounded-full border-4 border-white overflow-hidden bg-white shadow-md">
+              <img
+                src="/anh.jpg"
+                alt="Thầy Nguyễn Duy Thanh"
+                className="w-full h-full object-cover"
+                onError={(e) => {
+                  // Fallback avatar if url is broken
+                  (e.target as HTMLImageElement).src = "https://ui-avatars.com/api/?name=Nguyễn+Duy+Thanh&background=0D8ABC&color=fff";
+                }}
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Modal Body */}
+        <div className="pt-16 pb-6 px-6 text-center space-y-4">
+          <div>
+            <h2 className="text-xl font-bold text-slate-800">Thầy Nguyễn Duy Thanh</h2>
+            <p className="text-blue-600 font-medium text-sm mt-1">Giáo viên Toán</p>
+          </div>
+
+          <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 text-sm space-y-3 text-left">
+            <div className="flex gap-3 text-slate-600 items-start">
+              <BookOpen className="w-4 h-4 mt-0.5 shrink-0 text-blue-500" />
+              <div>
+                <span className="font-semibold text-slate-700 block">Nơi công tác</span>
+                Trường THPT Tân Phước Khánh
+              </div>
+            </div>
+
+            <div className="flex gap-3 text-slate-600 items-start">
+              <Square className="w-4 h-4 mt-0.5 shrink-0 text-blue-500" /> {/* Use Square or MapPin icon */}
+              <div>
+                <span className="font-semibold text-slate-700 block">Địa chỉ</span>
+                Phường Tân Khánh, Thành phố Hồ Chí Minh
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // --- MODEL SELECTOR COMPONENT ---
 function ModelSelector({
   selectedModel,
@@ -399,6 +461,9 @@ export default function App() {
     return localStorage.getItem("gemini_api_key") || "";
   });
   const [showApiKeyModal, setShowApiKeyModal] = useState(!apiKey);
+
+  // Author modal state
+  const [showAuthorModal, setShowAuthorModal] = useState(false);
 
   // Model selection
   const [selectedModel, setSelectedModel] = useState<string>(() => {
@@ -842,6 +907,12 @@ export default function App() {
         canClose={!!apiKey}
       />
 
+      {/* Author Modal */}
+      <AuthorModal
+        isOpen={showAuthorModal}
+        onClose={() => setShowAuthorModal(false)}
+      />
+
       {/* Header */}
       <header className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white p-4 shadow-lg shrink-0 z-10">
         <div className="max-w-4xl mx-auto flex items-center justify-between">
@@ -850,22 +921,36 @@ export default function App() {
               <Sparkles className="w-6 h-6 text-blue-50" />
             </div>
             <div>
-              <h1 className="font-bold text-lg leading-tight">Trợ lý ảo thầy Nguyễn Duy Thanh</h1>
-              <p className="text-blue-100 text-sm">Trường THPT Tân Phước Khánh</p>
+              <h1 className="font-bold text-lg leading-tight">Trợ lý ảo</h1>
+              <p className="text-blue-100 text-sm hidden sm:block">Trường THPT Tân Phước Khánh</p>
             </div>
           </div>
 
-          {/* Settings button (LỆNH.md §2) */}
-          <button
-            onClick={() => setShowApiKeyModal(true)}
-            className="flex items-center gap-2 px-3 py-2 bg-white/10 hover:bg-white/20 rounded-xl transition-colors"
-            title="Thiết lập API Key"
-          >
-            <Settings className="w-5 h-5" />
-            <span className="text-red-300 text-xs font-medium hidden sm:inline">
-              {apiKey ? "Đổi API Key" : "Lấy API key để sử dụng app"}
-            </span>
-          </button>
+          <div className="flex items-center gap-2">
+            {/* Author button */}
+            <button
+              onClick={() => setShowAuthorModal(true)}
+              className="flex items-center gap-2 px-3 py-2 bg-white/10 hover:bg-white/20 rounded-xl transition-colors"
+              title="Thông tin tác giả"
+            >
+              <Info className="w-5 h-5" />
+              <span className="text-blue-50 text-xs font-medium hidden sm:inline">
+                Tác giả
+              </span>
+            </button>
+
+            {/* Settings button (LỆNH.md §2) */}
+            <button
+              onClick={() => setShowApiKeyModal(true)}
+              className="flex items-center gap-2 px-3 py-2 bg-white/10 hover:bg-white/20 rounded-xl transition-colors"
+              title="Thiết lập API Key"
+            >
+              <Settings className="w-5 h-5" />
+              <span className="text-red-300 text-xs font-medium hidden sm:inline">
+                {apiKey ? "Đổi API Key" : "Lấy API key để sử dụng app"}
+              </span>
+            </button>
+          </div>
         </div>
       </header>
 
