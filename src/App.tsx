@@ -516,7 +516,7 @@ export default function App() {
             </div>
             <div>
               <h1 className="font-bold text-lg leading-tight">Trợ lý ảo thầy Nguyễn Duy Thanh</h1>
-              <p className="text-blue-100 text-sm">Trường THPT Tân Phước Khánh - Nguyên hàm & Tích phân</p>
+              <p className="text-blue-100 text-sm">Trường THPT Tân Phước Khánh</p>
             </div>
           </div>
 
