@@ -3,7 +3,7 @@ import { GoogleGenAI } from "@google/genai";
 import ReactMarkdown from "react-markdown";
 import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
-import { Send, Bot, User, Sparkles, BookOpen, Square, Cylinder, Activity, Settings, X, ExternalLink, AlertTriangle, Paperclip, Mic, MicOff, FileText, Image as ImageIcon, Trash2, Upload, Volume2, Play, ChevronDown, ChevronUp } from "lucide-react";
+import { Send, Bot, User, Sparkles, BookOpen, Square, Cylinder, Activity, Settings, X, ExternalLink, AlertTriangle, Paperclip, Mic, MicOff, FileText, Image as ImageIcon, Trash2, Upload, Volume2, Play, ChevronDown, ChevronUp, Lightbulb, PenLine } from "lucide-react";
 import { cn } from "./lib/utils";
 
 // --- ATTACHED FILE TYPE ---
@@ -679,8 +679,9 @@ export default function App() {
     }
 
     // Build display content for user message
+    const modeLabel = answerMode === "hint" ? "💡 Gợi ý nhẹ" : "📝 Giải chi tiết";
     const fileNames = attachedFiles.map(f => `📎 ${f.name}`).join("\n");
-    const displayContent = [text.trim(), fileNames].filter(Boolean).join("\n\n");
+    const displayContent = [`[${modeLabel}]`, text.trim(), fileNames].filter(Boolean).join("\n\n");
 
     const userMessage: Message = {
       id: Date.now().toString(),
@@ -741,6 +742,21 @@ export default function App() {
           messageParts = parts;
         } else {
           messageParts = text;
+        }
+
+        // Prepend answer mode instruction
+        const modeInstruction = answerMode === "hint"
+          ? "[CHẾ ĐỘ GỢI Ý NHẸ] Hãy chỉ đưa ra các gợi ý, hướng dẫn cách giải từng bước, nhắc công thức liên quan, NHƯNG KHÔNG cho đáp án cuối cùng. Để học sinh tự làm."
+          : "[CHẾ ĐỘ GIẢI CHI TIẾ T] Hãy giải bài toán này chi tiết từng bước, trình bày rõ ràng, có công thức và đáp án cuối cùng.";
+
+        if (Array.isArray(messageParts)) {
+          // Find the text part and prepend mode instruction
+          const textPartIndex = messageParts.findIndex((p: any) => p.text);
+          if (textPartIndex !== -1) {
+            messageParts[textPartIndex].text = modeInstruction + "\n\n" + messageParts[textPartIndex].text;
+          }
+        } else {
+          messageParts = modeInstruction + "\n\n" + messageParts;
         }
 
         const stream = await session.sendMessageStream({ message: messageParts });
@@ -806,6 +822,10 @@ export default function App() {
   };
 
   const hasContent = input.trim().length > 0 || attachedFiles.length > 0;
+
+  // Answer mode: "hint" = Gợi ý nhẹ, "detailed" = Giải chi tiết
+  type AnswerMode = "hint" | "detailed";
+  const [answerMode, setAnswerMode] = useState<AnswerMode>("hint");
 
   // Simulation panel state
   const [showSimulations, setShowSimulations] = useState(false);
@@ -981,6 +1001,37 @@ export default function App() {
                 <span>{prompt.title}</span>
               </button>
             ))}
+          </div>
+
+          {/* Answer Mode Toggle */}
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-slate-500 font-medium shrink-0">Chế độ:</span>
+            <div className="flex gap-1.5 bg-slate-100 p-1 rounded-xl">
+              <button
+                onClick={() => setAnswerMode("hint")}
+                className={cn(
+                  "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all",
+                  answerMode === "hint"
+                    ? "bg-amber-500 text-white shadow-md shadow-amber-200"
+                    : "text-slate-500 hover:text-amber-600 hover:bg-amber-50"
+                )}
+              >
+                <Lightbulb className="w-3.5 h-3.5" />
+                Gợi ý nhẹ
+              </button>
+              <button
+                onClick={() => setAnswerMode("detailed")}
+                className={cn(
+                  "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all",
+                  answerMode === "detailed"
+                    ? "bg-emerald-500 text-white shadow-md shadow-emerald-200"
+                    : "text-slate-500 hover:text-emerald-600 hover:bg-emerald-50"
+                )}
+              >
+                <PenLine className="w-3.5 h-3.5" />
+                Giải chi tiết
+              </button>
+            </div>
           </div>
 
           {/* Attached Files Preview */}
