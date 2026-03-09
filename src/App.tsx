@@ -118,7 +118,7 @@ const QUICK_PROMPTS = [
 Bài cần làm:
 Tìm nguyên hàm của: [ghi hàm f(x) vào đây].
 
-Anh/chị hãy:
+Thầy có thể:
 1. Chỉ cho em cách nhận biết dạng hàm này thuộc loại nào (dùng bảng nguyên hàm cơ bản, đổi biến, từng phần,…).
 2. Nhắc lại rõ công thức hoặc quy tắc tương ứng.
 3. Gợi ý bước đầu (chẳng hạn gợi ý chọn u, dv nếu từng phần; gợi ý đặt t = … nếu đổi biến).
@@ -133,7 +133,7 @@ Anh/chị hãy:
 Đề bài:
 Tính diện tích hình phẳng giới hạn bởi: [ghi rõ các hàm số vào đây, ví dụ: y = x^2 - 4x + 3 và trục hoành].
 
-Anh/chị hãy:
+Thầy có thể:
 1. Hướng dẫn em tìm giao điểm (các cận tích phân).
 2. Giải thích cách xác định hàm nằm trên, hàm nằm dưới trên đoạn đó.
 3. Nhắc lại công thức diện tích bằng tích phân (nói luôn về việc xét dấu hoặc dùng giá trị tuyệt đối).
@@ -148,10 +148,10 @@ Anh/chị hãy:
 Đề bài:
 Cho đường cong: y = [ghi f(x) vào đây], quay quanh trục Ox, từ x = a đến x = b. Hãy tính thể tích.
 
-Anh/chị hãy:
+Thầy có thể:
 1. Nhắc lại công thức thể tích vật thể tròn xoay quanh Ox.
 2. Chỉ rõ vì sao phải dùng [f(x)]^2 trong tích phân.
-3. Gợi ý em tự viết công thức V = π ∫_a^b [f(x)]^2 dx trước, rồi anh/chị mới kiểm tra.
+3. Gợi ý em tự viết công thức V = π ∫_a^b [f(x)]^2 dx trước, rồi thầy mới kiểm tra.
 4. Nếu em sai, hãy chỉ ra sai chỗ nào (quên bình phương, sai cận, sai đơn vị,…).`
   },
   {
