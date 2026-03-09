@@ -1,10 +1,52 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { GoogleGenAI } from "@google/genai";
 import ReactMarkdown from "react-markdown";
 import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
-import { Send, Bot, User, Sparkles, BookOpen, Square, Cylinder, Activity, Settings, X, ExternalLink, AlertTriangle } from "lucide-react";
+import { Send, Bot, User, Sparkles, BookOpen, Square, Cylinder, Activity, Settings, X, ExternalLink, AlertTriangle, Paperclip, Mic, MicOff, FileText, Image as ImageIcon, Trash2, Upload, Volume2 } from "lucide-react";
 import { cn } from "./lib/utils";
+
+// --- ATTACHED FILE TYPE ---
+type AttachedFile = {
+  id: string;
+  file: File;
+  name: string;
+  type: "image" | "document" | "audio";
+  size: number;
+  preview: string; // base64 data URL for images, or empty
+  mimeType: string;
+  base64Data: string; // raw base64 without prefix
+};
+
+const ACCEPTED_FILE_TYPES = [
+  "image/png", "image/jpeg", "image/jpg", "image/gif", "image/webp",
+  "application/pdf",
+  "application/msword",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+];
+
+const MAX_FILE_SIZE = 20 * 1024 * 1024; // 20MB
+const MAX_FILES = 5;
+
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return bytes + " B";
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + " KB";
+  return (bytes / (1024 * 1024)).toFixed(1) + " MB";
+}
+
+function getFileTypeCategory(mimeType: string): "image" | "document" | "audio" {
+  if (mimeType.startsWith("image/")) return "image";
+  if (mimeType.startsWith("audio/")) return "audio";
+  return "document";
+}
+
+function getFileIcon(type: "image" | "document" | "audio") {
+  switch (type) {
+    case "image": return <ImageIcon className="w-4 h-4" />;
+    case "audio": return <Volume2 className="w-4 h-4" />;
+    default: return <FileText className="w-4 h-4" />;
+  }
+}
 
 // --- MODEL CONFIGURATION (LỆNH.md §1) ---
 const AI_MODELS = [
@@ -337,6 +379,21 @@ export default function App() {
   const chatSessionRef = useRef<any>(null);
   const currentModelRef = useRef<string>(selectedModel);
 
+  // File attachment state
+  const [attachedFiles, setAttachedFiles] = useState<AttachedFile[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Voice recording state
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingTime, setRecordingTime] = useState(0);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const recordingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+
+  // Drag & drop state
+  const [isDragOver, setIsDragOver] = useState(false);
+  const dragCounterRef = useRef(0);
+
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
@@ -393,22 +450,211 @@ export default function App() {
     }
   }, [apiKey, selectedModel]);
 
+  // --- FILE HANDLING ---
+  const readFileAsBase64 = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const result = reader.result as string;
+        // Remove data URL prefix to get raw base64
+        const base64 = result.split(",")[1] || "";
+        resolve(base64);
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const handleFileSelect = useCallback(async (files: FileList | File[]) => {
+    const fileArray = Array.from(files);
+    const validFiles: AttachedFile[] = [];
+
+    for (const file of fileArray) {
+      // Check max files
+      if (attachedFiles.length + validFiles.length >= MAX_FILES) {
+        alert(`Chỉ được đính kèm tối đa ${MAX_FILES} file.`);
+        break;
+      }
+
+      // Check file size
+      if (file.size > MAX_FILE_SIZE) {
+        alert(`File "${file.name}" quá lớn. Giới hạn ${formatFileSize(MAX_FILE_SIZE)}.`);
+        continue;
+      }
+
+      // Check file type
+      if (!ACCEPTED_FILE_TYPES.includes(file.type) && !file.type.startsWith("audio/")) {
+        alert(`Định dạng file "${file.name}" không được hỗ trợ.\nChỉ chấp nhận: Word, PDF, hình ảnh.`);
+        continue;
+      }
+
+      try {
+        const base64Data = await readFileAsBase64(file);
+        const category = getFileTypeCategory(file.type);
+        const preview = category === "image" ? URL.createObjectURL(file) : "";
+
+        validFiles.push({
+          id: Date.now().toString() + Math.random().toString(36).substring(2),
+          file,
+          name: file.name,
+          type: category,
+          size: file.size,
+          preview,
+          mimeType: file.type,
+          base64Data,
+        });
+      } catch (err) {
+        console.error("Error reading file:", err);
+      }
+    }
+
+    if (validFiles.length > 0) {
+      setAttachedFiles(prev => [...prev, ...validFiles]);
+    }
+  }, [attachedFiles.length]);
+
+  const removeFile = useCallback((id: string) => {
+    setAttachedFiles(prev => {
+      const file = prev.find(f => f.id === id);
+      if (file?.preview) URL.revokeObjectURL(file.preview);
+      return prev.filter(f => f.id !== id);
+    });
+  }, []);
+
+  // --- VOICE RECORDING ---
+  const startRecording = useCallback(async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mediaRecorder = new MediaRecorder(stream, { mimeType: "audio/webm" });
+      mediaRecorderRef.current = mediaRecorder;
+      audioChunksRef.current = [];
+
+      mediaRecorder.ondataavailable = (e) => {
+        if (e.data.size > 0) {
+          audioChunksRef.current.push(e.data);
+        }
+      };
+
+      mediaRecorder.onstop = async () => {
+        const audioBlob = new Blob(audioChunksRef.current, { type: "audio/webm" });
+        const audioFile = new File([audioBlob], `ghi-am-${Date.now()}.webm`, { type: "audio/webm" });
+
+        // Stop all tracks
+        stream.getTracks().forEach(track => track.stop());
+
+        // Add to attached files
+        const base64Data = await readFileAsBase64(audioFile);
+        setAttachedFiles(prev => [...prev, {
+          id: Date.now().toString() + Math.random().toString(36).substring(2),
+          file: audioFile,
+          name: audioFile.name,
+          type: "audio",
+          size: audioFile.size,
+          preview: "",
+          mimeType: "audio/webm",
+          base64Data,
+        }]);
+      };
+
+      mediaRecorder.start();
+      setIsRecording(true);
+      setRecordingTime(0);
+
+      recordingIntervalRef.current = setInterval(() => {
+        setRecordingTime(prev => prev + 1);
+      }, 1000);
+    } catch (err) {
+      console.error("Error starting recording:", err);
+      alert("Không thể truy cập microphone. Vui lòng cấp quyền truy cập.");
+    }
+  }, []);
+
+  const stopRecording = useCallback(() => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+      mediaRecorderRef.current.stop();
+    }
+    setIsRecording(false);
+    if (recordingIntervalRef.current) {
+      clearInterval(recordingIntervalRef.current);
+      recordingIntervalRef.current = null;
+    }
+  }, []);
+
+  // Cleanup recording on unmount
+  useEffect(() => {
+    return () => {
+      if (recordingIntervalRef.current) clearInterval(recordingIntervalRef.current);
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+        mediaRecorderRef.current.stop();
+      }
+    };
+  }, []);
+
+  // --- DRAG & DROP HANDLERS ---
+  const handleDragEnter = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounterRef.current++;
+    if (e.dataTransfer.items && e.dataTransfer.items.length > 0) {
+      setIsDragOver(true);
+    }
+  }, []);
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounterRef.current--;
+    if (dragCounterRef.current === 0) {
+      setIsDragOver(false);
+    }
+  }, []);
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+  }, []);
+
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOver(false);
+    dragCounterRef.current = 0;
+
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      handleFileSelect(e.dataTransfer.files);
+    }
+  }, [handleFileSelect]);
+
+  const formatRecordingTime = (seconds: number) => {
+    const m = Math.floor(seconds / 60).toString().padStart(2, "0");
+    const s = (seconds % 60).toString().padStart(2, "0");
+    return `${m}:${s}`;
+  };
+
   const handleSend = async (text: string = input) => {
-    if (!text.trim() || isLoading) return;
+    if ((!text.trim() && attachedFiles.length === 0) || isLoading) return;
 
     if (!apiKey) {
       setShowApiKeyModal(true);
       return;
     }
 
+    // Build display content for user message
+    const fileNames = attachedFiles.map(f => `📎 ${f.name}`).join("\n");
+    const displayContent = [text.trim(), fileNames].filter(Boolean).join("\n\n");
+
     const userMessage: Message = {
       id: Date.now().toString(),
       role: "user",
-      content: text
+      content: displayContent
     };
+
+    // Capture current files before clearing
+    const filesToSend = [...attachedFiles];
 
     setMessages(prev => [...prev, userMessage]);
     setInput("");
+    setAttachedFiles([]);
     setIsLoading(true);
 
     // Auto-retry with fallback models (LỆNH.md §1)
@@ -434,7 +680,31 @@ export default function App() {
           { id: assistantMessageId, role: "assistant", content: "" }
         ]);
 
-        const stream = await session.sendMessageStream({ message: text });
+        // Build message parts with files
+        let messageParts: any;
+        if (filesToSend.length > 0) {
+          const parts: any[] = [];
+          // Add file parts
+          for (const f of filesToSend) {
+            parts.push({
+              inlineData: {
+                mimeType: f.mimeType,
+                data: f.base64Data,
+              }
+            });
+          }
+          // Add text part
+          if (text.trim()) {
+            parts.push({ text: text.trim() });
+          } else {
+            parts.push({ text: "Hãy phân tích nội dung file/hình ảnh mà em đã gửi." });
+          }
+          messageParts = parts;
+        } else {
+          messageParts = text;
+        }
+
+        const stream = await session.sendMessageStream({ message: messageParts });
 
         let fullResponse = "";
         for await (const chunk of stream) {
@@ -495,6 +765,8 @@ export default function App() {
       textarea.focus();
     }
   };
+
+  const hasContent = input.trim().length > 0 || attachedFiles.length > 0;
 
   return (
     <div className="flex flex-col h-screen bg-slate-50 font-sans">
@@ -603,7 +875,7 @@ export default function App() {
 
       {/* Input Area */}
       <footer className="bg-white border-t border-slate-200 p-4 shrink-0">
-        <div className="max-w-3xl mx-auto space-y-4">
+        <div className="max-w-3xl mx-auto space-y-3">
           {/* Quick Prompts */}
           <div className="flex flex-wrap gap-2">
             {QUICK_PROMPTS.map((prompt) => (
@@ -618,32 +890,153 @@ export default function App() {
             ))}
           </div>
 
-          {/* Chat Input */}
-          <div className="relative flex items-end gap-2 bg-slate-50 p-2 rounded-2xl border border-slate-200 focus-within:border-blue-400 focus-within:ring-1 focus-within:ring-blue-400 transition-all">
-            <textarea
-              id="chat-input"
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey) {
-                  e.preventDefault();
-                  handleSend();
-                }
-              }}
-              placeholder="Nhập bài toán hoặc câu hỏi của em vào đây..."
-              className="flex-1 max-h-40 min-h-[44px] bg-transparent resize-none outline-none py-2 px-3 text-slate-700 placeholder:text-slate-400"
-              rows={input.split("\n").length > 1 ? Math.min(input.split("\n").length, 5) : 1}
-            />
-            <button
-              onClick={() => handleSend()}
-              disabled={!input.trim() || isLoading}
-              className="p-3 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white rounded-xl transition-colors shrink-0 mb-0.5"
-            >
-              <Send className="w-5 h-5" />
-            </button>
+          {/* Attached Files Preview */}
+          {attachedFiles.length > 0 && (
+            <div className="flex flex-wrap gap-2 p-2 bg-slate-50 rounded-xl border border-slate-200">
+              {attachedFiles.map((file) => (
+                <div
+                  key={file.id}
+                  className="group relative flex items-center gap-2 bg-white border border-slate-200 rounded-xl px-3 py-2 shadow-sm hover:shadow-md transition-all max-w-[200px]"
+                >
+                  {/* Thumbnail or icon */}
+                  {file.type === "image" && file.preview ? (
+                    <img
+                      src={file.preview}
+                      alt={file.name}
+                      className="w-10 h-10 rounded-lg object-cover shrink-0"
+                    />
+                  ) : (
+                    <div className={cn(
+                      "w-10 h-10 rounded-lg flex items-center justify-center shrink-0",
+                      file.type === "audio" ? "bg-purple-100 text-purple-600" : "bg-blue-100 text-blue-600"
+                    )}>
+                      {getFileIcon(file.type)}
+                    </div>
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs font-medium text-slate-700 truncate">{file.name}</p>
+                    <p className="text-[10px] text-slate-400">{formatFileSize(file.size)}</p>
+                  </div>
+                  {/* Remove button */}
+                  <button
+                    onClick={() => removeFile(file.id)}
+                    className="absolute -top-1.5 -right-1.5 bg-red-500 hover:bg-red-600 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity shadow-md"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Chat Input with Drag & Drop */}
+          <div
+            className={cn(
+              "relative rounded-2xl border-2 transition-all",
+              isDragOver
+                ? "border-blue-400 bg-blue-50 ring-2 ring-blue-200"
+                : "border-slate-200 bg-slate-50 focus-within:border-blue-400 focus-within:ring-1 focus-within:ring-blue-400"
+            )}
+            onDragEnter={handleDragEnter}
+            onDragLeave={handleDragLeave}
+            onDragOver={handleDragOver}
+            onDrop={handleDrop}
+          >
+            {/* Drag overlay */}
+            {isDragOver && (
+              <div className="absolute inset-0 bg-blue-50/90 backdrop-blur-sm rounded-2xl flex flex-col items-center justify-center z-10 pointer-events-none">
+                <div className="bg-blue-100 p-3 rounded-full mb-2 animate-bounce">
+                  <Upload className="w-6 h-6 text-blue-600" />
+                </div>
+                <p className="text-blue-600 font-semibold text-sm">Thả file vào đây</p>
+                <p className="text-blue-400 text-xs mt-1">Word, PDF, hình ảnh</p>
+              </div>
+            )}
+
+            {/* Recording indicator */}
+            {isRecording && (
+              <div className="flex items-center gap-2 px-4 py-2 bg-red-50 border-b border-red-100 rounded-t-2xl">
+                <div className="w-2.5 h-2.5 bg-red-500 rounded-full animate-pulse" />
+                <span className="text-red-600 text-sm font-medium">Đang ghi âm</span>
+                <span className="text-red-500 text-sm font-mono">{formatRecordingTime(recordingTime)}</span>
+                <button
+                  onClick={stopRecording}
+                  className="ml-auto text-xs bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded-full transition-colors font-medium"
+                >
+                  Dừng ghi âm
+                </button>
+              </div>
+            )}
+
+            <div className="flex items-end gap-2 p-2">
+              {/* Textarea */}
+              <textarea
+                id="chat-input"
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    handleSend();
+                  }
+                }}
+                placeholder={isDragOver ? "Thả file vào đây..." : "Nhập bài toán hoặc câu hỏi, hoặc kéo thả file vào đây..."}
+                className="flex-1 max-h-40 min-h-[44px] bg-transparent resize-none outline-none py-2 px-3 text-slate-700 placeholder:text-slate-400"
+                rows={input.split("\n").length > 1 ? Math.min(input.split("\n").length, 5) : 1}
+              />
+
+              {/* Action buttons */}
+              <div className="flex items-center gap-1 shrink-0 mb-0.5">
+                {/* Upload file button */}
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  multiple
+                  accept=".doc,.docx,.pdf,.png,.jpg,.jpeg,.gif,.webp,image/*"
+                  className="hidden"
+                  onChange={(e) => {
+                    if (e.target.files) handleFileSelect(e.target.files);
+                    e.target.value = ""; // reset để cho phép chọn lại cùng file
+                  }}
+                />
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  className="p-2.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-colors"
+                  title="Đính kèm file (Word, PDF, hình ảnh)"
+                >
+                  <Paperclip className="w-5 h-5" />
+                </button>
+
+                {/* Voice recording button */}
+                <button
+                  onClick={isRecording ? stopRecording : startRecording}
+                  className={cn(
+                    "p-2.5 rounded-xl transition-all",
+                    isRecording
+                      ? "text-white bg-red-500 hover:bg-red-600 animate-pulse"
+                      : "text-slate-400 hover:text-purple-600 hover:bg-purple-50"
+                  )}
+                  title={isRecording ? "Dừng ghi âm" : "Ghi âm giọng nói"}
+                >
+                  {isRecording ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
+                </button>
+
+                {/* Send button */}
+                <button
+                  onClick={() => handleSend()}
+                  disabled={!hasContent || isLoading}
+                  className="p-2.5 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white rounded-xl transition-colors"
+                >
+                  <Send className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
           </div>
-          <div className="text-center text-xs text-slate-400">
-            Trợ lý ảo chỉ hỗ trợ học tập, không giải hộ bài kiểm tra. Hãy tự mình suy nghĩ nhé!
+
+          {/* Helper text */}
+          <div className="flex items-center justify-between text-xs text-slate-400 px-1">
+            <span>📎 Word, PDF, hình ảnh · 🎤 Ghi âm · Kéo thả file vào ô nhập</span>
+            <span>Trợ lý ảo chỉ hỗ trợ học tập</span>
           </div>
         </div>
       </footer>
