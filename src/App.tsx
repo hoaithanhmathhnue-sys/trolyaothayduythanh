@@ -3,7 +3,7 @@ import { GoogleGenAI } from "@google/genai";
 import ReactMarkdown from "react-markdown";
 import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
-import { Send, Bot, User, Sparkles, BookOpen, Square, Cylinder, Activity, Settings, X, ExternalLink, AlertTriangle, Paperclip, Mic, MicOff, FileText, Image as ImageIcon, Trash2, Upload, Volume2 } from "lucide-react";
+import { Send, Bot, User, Sparkles, BookOpen, Square, Cylinder, Activity, Settings, X, ExternalLink, AlertTriangle, Paperclip, Mic, MicOff, FileText, Image as ImageIcon, Trash2, Upload, Volume2, Play, ChevronDown, ChevronUp } from "lucide-react";
 import { cn } from "./lib/utils";
 
 // --- ATTACHED FILE TYPE ---
@@ -47,6 +47,45 @@ function getFileIcon(type: "image" | "document" | "audio") {
     default: return <FileText className="w-4 h-4" />;
   }
 }
+
+// --- SIMULATION LINKS ---
+const SIMULATIONS = [
+  {
+    id: "nguyen-ham",
+    title: "Mô phỏng Nguyên hàm",
+    url: "https://cdn.gooo.ai/artifacts/019cd0d9-15bd-7755-9220-757d0c231f67/index.html",
+    color: "from-emerald-500 to-teal-500",
+    icon: <BookOpen className="w-4 h-4" />,
+  },
+  {
+    id: "tich-phan",
+    title: "Mô phỏng Tích phân xác định",
+    url: "https://cdn.gooo.ai/artifacts/019cd0d9-314a-7560-85f2-234a9ae7b4c1/index.html",
+    color: "from-blue-500 to-indigo-500",
+    icon: <Sparkles className="w-4 h-4" />,
+  },
+  {
+    id: "dien-tich",
+    title: "Mô phỏng Diện tích hình phẳng",
+    url: "https://cdn.gooo.ai/artifacts/019cd0d9-4b95-78eb-b880-f70f16d57b93/index.html",
+    color: "from-violet-500 to-purple-500",
+    icon: <Square className="w-4 h-4" />,
+  },
+  {
+    id: "the-tich",
+    title: "Mô phỏng Thể tích khối tròn xoay",
+    url: "https://cdn.gooo.ai/artifacts/019cd0d9-69ab-772f-89a1-966e9a63bbb4/index.html",
+    color: "from-orange-500 to-amber-500",
+    icon: <Cylinder className="w-4 h-4" />,
+  },
+  {
+    id: "chuyen-dong",
+    title: "Mô phỏng Bài toán chuyển động",
+    url: "https://cdn.gooo.ai/artifacts/019cd0d9-97a0-7bca-8370-75928f389904/index.html",
+    color: "from-rose-500 to-pink-500",
+    icon: <Activity className="w-4 h-4" />,
+  },
+];
 
 // --- MODEL CONFIGURATION (LỆNH.md §1) ---
 const AI_MODELS = [
@@ -768,6 +807,9 @@ export default function App() {
 
   const hasContent = input.trim().length > 0 || attachedFiles.length > 0;
 
+  // Simulation panel state
+  const [showSimulations, setShowSimulations] = useState(false);
+
   return (
     <div className="flex flex-col h-screen bg-slate-50 font-sans">
       {/* API Key Modal */}
@@ -813,6 +855,57 @@ export default function App() {
             <span className="text-xs text-slate-500 font-medium shrink-0">Model AI:</span>
             <ModelSelector selectedModel={selectedModel} onSelectModel={handleSelectModel} />
           </div>
+        </div>
+      </div>
+
+      {/* Simulation Panel */}
+      <div className="bg-white border-b border-slate-200 shrink-0">
+        <div className="max-w-3xl mx-auto">
+          <button
+            onClick={() => setShowSimulations(!showSimulations)}
+            className="w-full flex items-center justify-between px-4 py-2.5 hover:bg-slate-50 transition-colors group"
+          >
+            <div className="flex items-center gap-2">
+              <div className="bg-gradient-to-r from-emerald-500 to-teal-500 p-1.5 rounded-lg">
+                <Play className="w-3.5 h-3.5 text-white" />
+              </div>
+              <span className="text-sm font-semibold text-slate-700">Mô phỏng tương tác</span>
+              <span className="text-[10px] bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full font-medium">{SIMULATIONS.length} bài</span>
+            </div>
+            {showSimulations ? (
+              <ChevronUp className="w-4 h-4 text-slate-400 group-hover:text-slate-600 transition-colors" />
+            ) : (
+              <ChevronDown className="w-4 h-4 text-slate-400 group-hover:text-slate-600 transition-colors" />
+            )}
+          </button>
+
+          {showSimulations && (
+            <div className="px-4 pb-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+              {SIMULATIONS.map((sim) => (
+                <a
+                  key={sim.id}
+                  href={sim.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-3 p-3 rounded-xl border border-slate-200 hover:border-transparent hover:shadow-lg transition-all group/card bg-white hover:bg-gradient-to-r hover:from-slate-50 hover:to-white"
+                >
+                  <div className={cn(
+                    "p-2 rounded-lg bg-gradient-to-r text-white shrink-0 shadow-sm group-hover/card:shadow-md transition-shadow",
+                    sim.color
+                  )}>
+                    {sim.icon}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs font-semibold text-slate-700 truncate">{sim.title}</p>
+                    <p className="text-[10px] text-slate-400 flex items-center gap-1 mt-0.5">
+                      <ExternalLink className="w-3 h-3" />
+                      Mở mô phỏng
+                    </p>
+                  </div>
+                </a>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
