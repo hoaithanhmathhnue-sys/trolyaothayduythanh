@@ -3,7 +3,7 @@ import { GoogleGenAI } from "@google/genai";
 import ReactMarkdown from "react-markdown";
 import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
-import { Send, Bot, User, Sparkles, BookOpen, Square, Cylinder, Activity, Settings, X, ExternalLink, AlertTriangle, Paperclip, Mic, MicOff, FileText, Image as ImageIcon, Trash2, Upload, Volume2, Play, ChevronDown, ChevronUp, Lightbulb, PenLine, Info } from "lucide-react";
+import { Send, Bot, User, Sparkles, BookOpen, Square, Cylinder, Activity, Settings, X, ExternalLink, AlertTriangle, Paperclip, Mic, MicOff, FileText, Image as ImageIcon, Trash2, Upload, Volume2, Play, ChevronDown, ChevronUp, Lightbulb, PenLine, Info, Save, UserCircle } from "lucide-react";
 import { cn } from "./lib/utils";
 
 // --- ATTACHED FILE TYPE ---
@@ -265,15 +265,18 @@ function ApiKeyModal({
   onClose,
   onSave,
   currentKey,
+  currentSheetUrl,
   canClose
 }: {
   isOpen: boolean;
   onClose: () => void;
-  onSave: (key: string) => void;
+  onSave: (key: string, sheetUrl: string) => void;
   currentKey: string;
+  currentSheetUrl: string;
   canClose: boolean;
 }) {
   const [keyInput, setKeyInput] = useState(currentKey);
+  const [sheetInput, setSheetInput] = useState(currentSheetUrl);
 
   if (!isOpen) return null;
 
@@ -319,6 +322,19 @@ function ApiKeyModal({
             />
           </div>
 
+          <div>
+            <label className="block text-sm font-semibold text-slate-700 mb-2 mt-4">
+              Google Sheets URL (Tùy chọn cho GV)
+            </label>
+            <input
+              type="url"
+              value={sheetInput}
+              onChange={(e) => setSheetInput(e.target.value)}
+              placeholder="https://script.google.com/macros/s/.../exec"
+              className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none transition-all text-slate-700 text-sm"
+            />
+          </div>
+
           <a
             href="https://aistudio.google.com/api-keys"
             target="_blank"
@@ -341,7 +357,7 @@ function ApiKeyModal({
           <button
             onClick={() => {
               if (keyInput.trim()) {
-                onSave(keyInput.trim());
+                onSave(keyInput.trim(), sheetInput.trim());
               }
             }}
             disabled={!keyInput.trim()}
@@ -455,12 +471,98 @@ function ModelSelector({
   );
 }
 
+function StudentInfoModal({
+  isOpen,
+  onSave,
+  defaultName = "",
+  defaultClass = "",
+}: {
+  isOpen: boolean;
+  onSave: (name: string, className: string) => void;
+  defaultName?: string;
+  defaultClass?: string;
+}) {
+  const [name, setName] = useState(defaultName);
+  const [className, setClassName] = useState(defaultClass);
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden">
+        <div className="bg-gradient-to-r from-emerald-600 to-teal-600 p-5 text-white">
+          <div className="flex items-center gap-3">
+            <div className="bg-white/20 p-2 rounded-xl">
+              <UserCircle className="w-5 h-5" />
+            </div>
+            <div>
+              <h2 className="font-bold text-lg">Thông tin Học sinh</h2>
+              <p className="text-emerald-100 text-sm">Vui lòng cho thầy biết thông tin nhé</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="p-5 space-y-4">
+          <div>
+            <label className="block text-sm font-semibold text-slate-700 mb-2">Họ và Tên</label>
+            <input
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="VD: Nguyễn Văn A"
+              className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 outline-none transition-all text-slate-700 text-sm"
+              autoFocus
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-semibold text-slate-700 mb-2">Lớp</label>
+            <input
+              type="text"
+              value={className}
+              onChange={(e) => setClassName(e.target.value)}
+              placeholder="VD: 12A1"
+              className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 outline-none transition-all text-slate-700 text-sm"
+            />
+          </div>
+
+          <button
+            onClick={() => {
+              if (name.trim() && className.trim()) {
+                onSave(name.trim(), className.trim());
+              }
+            }}
+            disabled={!name.trim() || !className.trim()}
+            className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white font-semibold rounded-xl transition-colors"
+          >
+            Vào học ngay
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
-  // API Key state
-  const [apiKey, setApiKey] = useState<string>(() => {
-    return localStorage.getItem("gemini_api_key") || "";
-  });
+  // API Key & Google Sheet state
+  const [apiKey, setApiKey] = useState<string>(() => localStorage.getItem("gemini_api_key") || "");
+  const [googleSheetUrl, setGoogleSheetUrl] = useState<string>(() => localStorage.getItem("google_sheet_url") || "");
   const [showApiKeyModal, setShowApiKeyModal] = useState(!apiKey);
+
+  // Student Info state
+  const [studentName, setStudentName] = useState<string>(() => localStorage.getItem("student_name") || "");
+  const [studentClass, setStudentClass] = useState<string>(() => localStorage.getItem("student_class") || "");
+  const [showStudentModal, setShowStudentModal] = useState(false);
+
+  // Session start time & history
+  const [sessionStartTime] = useState<number>(Date.now());
+  const [isSavingHistory, setIsSavingHistory] = useState(false);
+
+  // Show student modal if API key exists but no info
+  useEffect(() => {
+    if (apiKey && (!studentName || !studentClass)) {
+      setShowStudentModal(true);
+    }
+  }, [apiKey, studentName, studentClass]);
 
   // Author modal state
   const [showAuthorModal, setShowAuthorModal] = useState(false);
@@ -508,12 +610,77 @@ export default function App() {
   }, [messages]);
 
   // Save API key to localStorage
-  const handleSaveApiKey = (key: string) => {
+  const handleSaveApiKey = (key: string, sheetUrl: string) => {
     setApiKey(key);
+    setGoogleSheetUrl(sheetUrl);
     localStorage.setItem("gemini_api_key", key);
+    localStorage.setItem("google_sheet_url", sheetUrl);
     setShowApiKeyModal(false);
     // Reset chat session so it uses the new key
     chatSessionRef.current = null;
+  };
+
+  const handleSaveStudentInfo = (name: string, className: string) => {
+    setStudentName(name);
+    setStudentClass(className);
+    localStorage.setItem("student_name", name);
+    localStorage.setItem("student_class", className);
+    setShowStudentModal(false);
+  };
+
+  const handleSaveHistory = async () => {
+    if (!googleSheetUrl) {
+      alert("Giáo viên chưa cấu hình URL Google Sheets trong Cài đặt (API Key).");
+      return;
+    }
+    if (!studentName || !studentClass) {
+      setShowStudentModal(true);
+      return;
+    }
+    if (messages.length <= 1) {
+      alert("Chưa có đoạn chat nào để lưu.");
+      return;
+    }
+
+    setIsSavingHistory(true);
+    try {
+      const details = messages
+        .filter(m => m.id !== "welcome")
+        .map(m => `[${m.role === 'user' ? 'Học sinh' : 'Trợ lý ảo'}]: ${m.content}`)
+        .join("\n\n---\n\n");
+
+      const payload = {
+        action: "submit",
+        data: {
+          timestamp: new Date().toLocaleString("vi-VN"),
+          studentName: studentName,
+          studentClass: studentClass,
+          level: "THPT",
+          grade: 12,
+          topic: "Ôn tập Toán (Chat)",
+          totalQuestions: messages.filter(m => m.role === "user").length,
+          correctCount: 0,
+          incorrectCount: 0,
+          scorePercent: 0,
+          timeTakenSeconds: Math.floor((Date.now() - sessionStartTime) / 1000),
+          details: details
+        }
+      };
+
+      const response = await fetch(googleSheetUrl, {
+        method: "POST",
+        mode: "no-cors",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+      
+      alert("Đã gửi lịch sử học tập thành công lên Google Sheets!");
+    } catch (err) {
+      console.error("Save history error:", err);
+      alert("Lỗi khi gửi lịch sử: " + (err as Error).message);
+    } finally {
+      setIsSavingHistory(false);
+    }
   };
 
   // Save selected model
@@ -904,7 +1071,16 @@ export default function App() {
         onClose={() => setShowApiKeyModal(false)}
         onSave={handleSaveApiKey}
         currentKey={apiKey}
+        currentSheetUrl={googleSheetUrl}
         canClose={!!apiKey}
+      />
+
+      {/* Student Info Modal */}
+      <StudentInfoModal
+        isOpen={showStudentModal}
+        onSave={handleSaveStudentInfo}
+        defaultName={studentName}
+        defaultClass={studentClass}
       />
 
       {/* Author Modal */}
@@ -927,6 +1103,19 @@ export default function App() {
           </div>
 
           <div className="flex items-center gap-2">
+            {/* Save History button */}
+            <button
+              onClick={handleSaveHistory}
+              disabled={isSavingHistory}
+              className="flex items-center gap-2 px-3 py-2 bg-emerald-500 hover:bg-emerald-600 disabled:bg-emerald-500/50 rounded-xl transition-colors shadow-sm"
+              title="Lưu kết quả học tập vào Google Sheets"
+            >
+              <Save className={cn("w-5 h-5", isSavingHistory ? "animate-pulse" : "")} />
+              <span className="text-white text-xs font-semibold hidden sm:inline shadow-sm">
+                {isSavingHistory ? "Đang lưu..." : "Lưu Kết Quả"}
+              </span>
+            </button>
+
             {/* Author button */}
             <button
               onClick={() => setShowAuthorModal(true)}
