@@ -673,7 +673,7 @@ export default function App() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload)
       });
-      
+
       alert("Đã gửi lịch sử học tập thành công lên Google Sheets!");
     } catch (err) {
       console.error("Save history error:", err);
@@ -1103,6 +1103,20 @@ export default function App() {
           </div>
 
           <div className="flex items-center gap-2">
+            {/* Student Info Display */}
+            {studentName && studentClass && (
+              <div
+                onClick={() => setShowStudentModal(true)}
+                className="hidden sm:flex items-center gap-2 px-3 py-2 bg-white/10 hover:bg-white/20 rounded-xl transition-colors cursor-pointer"
+                title="Sửa thông tin học sinh"
+              >
+                <UserCircle className="w-5 h-5 text-emerald-300" />
+                <span className="text-white text-sm font-semibold">
+                  {studentName} <span className="font-normal text-blue-100">({studentClass})</span>
+                </span>
+              </div>
+            )}
+
             {/* Save History button */}
             <button
               onClick={handleSaveHistory}
